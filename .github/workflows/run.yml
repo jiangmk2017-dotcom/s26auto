@@ -16,15 +16,19 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.10"
-      - name: 还原 Google token.json
-        run: echo "${{ secrets.GOOGLE_TOKEN_JSON }}" > token.json
-      - name: 安装系统依赖（解决TA-Lib问题）
+      
+      # 强制在当前目录生成 token.json，并调试确认
+      - name: 还原 Google token.json 文件
+        run: |
+          echo "${{ secrets.GOOGLE_TOKEN_JSON }}" > ./token.json
+          ls -la  # 列出文件，确认 token.json 存在
+      
+      - name: 安装依赖
         run: |
           sudo apt update
           sudo apt install -y build-essential
-      - name: 安装Python依赖
-        run: |
           pip install --upgrade pip
           pip install gspread requests pandas numpy TA-Lib
+      
       - name: 运行 S26 策略
         run: python s26.py
