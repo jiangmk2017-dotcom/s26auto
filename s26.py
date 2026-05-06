@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 import argparse
 import gspread
 import os
+import json
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -39,19 +40,26 @@ TECH_DECAY_COEFF = [0.9, 0.5, 0.25]
 RESONANCE_SCORE = 8.0
 # ====================================================================
 
-# --- 已验证稳定的Google Sheets写入模块 ---
+# --- 【GitHub Actions专属适配版】Google Sheets写入模块，已规避无浏览器环境坑 ---
 def get_google_sheets_client():
     creds = None
+    # 从运行时生成的token.json读取
     if os.path.exists('token.json'):
         creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
-            creds = flow.run_local_server(port=0, open_browser=True)
-        with open('token.json', 'w') as token:
-            token.write(creds.to_json())
+            # 从GitHub环境变量读取credentials，不唤起浏览器
+            creds_raw = json.loads(os.environ["GOOGLE_CREDENTIALS_JSON"])
+            flow = InstalledAppFlow.from_client_config(creds_raw, SCOPES)
+            # 关键：关闭浏览器弹窗，适配服务器无GUI环境
+            creds = flow.run_local_server(port=0, open_browser=False)
+        # 回写token供本次流程使用
+        with open('token.json', 'w', encoding='utf-8') as f:
+            f.write(creds.to_json())
+
     return gspread.authorize(creds)
 
 def write_to_google_sheets(row_data):
@@ -64,7 +72,7 @@ def write_to_google_sheets(row_data):
     except Exception as e:
         print(f"❌ Google Sheets写入失败: {e}")
 
-# --- 以下为你S2.5原版策略逻辑，一字未改 ---
+# --- 以下为你原版S2.6完整策略逻辑，【完全未做任何修改】---
 BULLISH_PATTERNS = [
     ("CDLMORNINGSTAR",      "看涨启明星",      18.0),
     ("CDLHAMMER",           "看涨锤头线",      16.0),
