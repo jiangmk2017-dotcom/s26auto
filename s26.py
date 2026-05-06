@@ -40,25 +40,33 @@ TECH_DECAY_COEFF = [0.9, 0.5, 0.25]
 RESONANCE_SCORE = 8.0
 # ====================================================================
 
-# --- 【GitHub Actions专属适配版】Google Sheets写入模块，已规避无浏览器环境坑 ---
+# --- 【GitHub Actions终极修复版】Google Sheets写入模块 ---
 def get_google_sheets_client():
     creds = None
-    # 从运行时生成的token.json读取
-    if os.path.exists('token.json'):
-        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+    # 使用绝对路径规避GitHub工作目录偏移坑
+    token_path = os.path.join(os.getcwd(), "token.json")
+    print(f"[Debug] 当前工作目录: {os.getcwd()}")
+    print(f"[Debug] Token文件路径: {token_path}")
+    print(f"[Debug] Token文件是否存在: {os.path.exists(token_path)}")
+
+    if os.path.exists(token_path):
+        creds = Credentials.from_authorized_user_file(token_path, SCOPES)
+        print("[Debug] 成功从本地token.json加载凭证")
 
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
+            print("[Debug] Token已自动刷新")
         else:
-            # 从GitHub环境变量读取credentials，不唤起浏览器
+            # 安全解析环境变量中的credentials，规避换行转义坑
             creds_raw = json.loads(os.environ["GOOGLE_CREDENTIALS_JSON"])
             flow = InstalledAppFlow.from_client_config(creds_raw, SCOPES)
-            # 关键：关闭浏览器弹窗，适配服务器无GUI环境
+            # 禁用浏览器弹窗，适配无GUI服务器环境
             creds = flow.run_local_server(port=0, open_browser=False)
-        # 回写token供本次流程使用
-        with open('token.json', 'w', encoding='utf-8') as f:
+        # 指定utf-8编码写入，防止乱码与格式损坏
+        with open(token_path, 'w', encoding='utf-8') as f:
             f.write(creds.to_json())
+            print("[Debug] 新Token已写入本地文件")
 
     return gspread.authorize(creds)
 
@@ -71,6 +79,7 @@ def write_to_google_sheets(row_data):
         print("✅ 数据已写入Google Sheets")
     except Exception as e:
         print(f"❌ Google Sheets写入失败: {e}")
+        raise
 
 # --- 以下为你原版S2.6完整策略逻辑，【完全未做任何修改】---
 BULLISH_PATTERNS = [
